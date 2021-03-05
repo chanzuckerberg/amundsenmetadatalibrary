@@ -9,7 +9,7 @@ from amundsen_common.models.dashboard import DashboardSummarySchema
 from amundsen_common.models.popular_table import PopularTableSchema
 from amundsen_common.models.user import UserSchema
 from flasgger import swag_from
-from flask import current_app as app
+from flask import current_app as app, request
 from flask_restful import Resource
 
 from metadata_service.api import BaseAPI
@@ -34,7 +34,10 @@ class UserDetailAPI(BaseAPI):
     def get(self, *, id: Optional[str] = None) -> Iterable[Union[Mapping, int, None]]:
         if app.config['USER_DETAIL_METHOD']:
             try:
-                return app.config['USER_DETAIL_METHOD'](id)
+                print('\n\n-------DEBUGGING LINE HERE ALLISON HAN-------\n\n')
+                print(request.headers)
+                user = app.config['USER_DETAIL_METHOD'](id)
+                return UserSchema().dump(user).data, HTTPStatus.OK
             except Exception:
                 LOGGER.exception('UserDetailAPI GET Failed - Using "USER_DETAIL_METHOD" config variable')
                 return {'message': 'user_id {} fetch failed'.format(id)}, HTTPStatus.NOT_FOUND
