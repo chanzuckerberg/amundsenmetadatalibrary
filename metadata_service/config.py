@@ -7,7 +7,6 @@ from typing import Dict, List, Optional, Set  # noqa: F401
 
 import boto3
 from amundsen_gremlin.config import LocalGremlinConfig
-from amundsen_gremlin.test_and_development_shard import shard_set_explicitly
 
 from metadata_service.entity.badge import Badge
 
@@ -55,13 +54,6 @@ class Config:
 
     IS_STATSD_ON = False
 
-    # Used to differentiate tables with other entities in Atlas. For more details:
-    # https://github.com/amundsen-io/amundsenmetadatalibrary/blob/master/docs/proxy/atlas_proxy.md
-    ATLAS_TABLE_ENTITY = 'Table'
-
-    # The relationalAttribute name of Atlas Entity that identifies the database entity.
-    ATLAS_DB_ATTRIBUTE = 'db'
-
     # Configurable dictionary to influence format of column statistics displayed in UI
     STATISTICS_FORMAT_SPEC: Dict[str, Dict] = {}
 
@@ -83,17 +75,19 @@ class Config:
     # List of regexes which will exclude certain parameters from appearing as Programmatic Descriptions
     PROGRAMMATIC_DESCRIPTIONS_EXCLUDE_FILTERS = []  # type: list
 
-    # List of accepted date formats for AtlasProxy Watermarks. With this we allow more than one datetime partition
-    # format to be used in tables
-    WATERMARK_DATE_FORMATS = ['%Y%m%d']
-
     # Custom kwargs that will be passed to proxy client. Can be used to fine-tune parameters like timeout
     # or num of retries
     PROXY_CLIENT_KWARGS: Dict = dict()
 
+    SWAGGER_TEMPLATE_PATH = os.path.join('api', 'swagger_doc', 'template.yml')
+    SWAGGER = {
+        'openapi': '3.0.2',
+        'title': 'Metadata Service',
+        'uiversion': 3
+    }
 
-# NB: If you're using the gremlin proxy, the appropriate GremlinConfig must be added to any other configs
-class LocalConfig(LocalGremlinConfig, Config):
+
+class LocalConfig(Config):
     DEBUG = True
     TESTING = False
     LOG_LEVEL = 'DEBUG'
@@ -105,50 +99,38 @@ class LocalConfig(LocalGremlinConfig, Config):
     PROXY_ENCRYPTED = bool(distutils.util.strtobool(os.environ.get(PROXY_ENCRYPTED, 'True')))
     PROXY_VALIDATE_SSL = bool(distutils.util.strtobool(os.environ.get(PROXY_VALIDATE_SSL, 'False')))
 
-    JANUS_GRAPH_URL = None
-
     IS_STATSD_ON = bool(distutils.util.strtobool(os.environ.get(IS_STATSD_ON, 'False')))
 
     SWAGGER_ENABLED = True
-    SWAGGER_TEMPLATE_PATH = os.path.join('api', 'swagger_doc', 'template.yml')
-    SWAGGER = {
-        'openapi': '3.0.2',
-        'title': 'Metadata Service',
-        'uiversion': 3
-    }
 
 
-# The databuilder expects this to be False currently. We are defaulting to true because the testing expects this
-if bool(distutils.util.strtobool(os.environ.get('IGNORE_NEPTUNE_SHARD', 'False'))):
-    shard_set_explicitly('')
+class AtlasConfig(LocalConfig):
+    PROXY_HOST = os.environ.get('PROXY_HOST', 'localhost')
+    PROXY_PORT = os.environ.get('PROXY_PORT', '21000')
+    PROXY_CLIENT = PROXY_CLIENTS['ATLAS']
+
+    # List of accepted date formats for AtlasProxy Watermarks. With this we allow more than one datetime partition
+    # format to be used in tables
+    WATERMARK_DATE_FORMATS = ['%Y%m%d']
 
 
-class NeptuneConfig(LocalGremlinConfig, Config):
+class GremlinConfig(LocalGremlinConfig, LocalConfig):
+    JANUS_GRAPH_URL = None
+
+
+class NeptuneConfig(LocalGremlinConfig, LocalConfig):
     DEBUG = False
-    TESTING = False
     LOG_LEVEL = 'INFO'
-    LOCAL_HOST = '0.0.0.0'
 
-    # FORMAT: wss://<NEPTUNE_URL>:<NEPTUNE_PORT>/gremlin
-    PROXY_HOST = os.environ.get('PROXY_HOST')
-    PROXY_PORT = None
+    # PROXY_HOST FORMAT: wss://<NEPTUNE_URL>:<NEPTUNE_PORT>/gremlin
+    PROXY_PORT = None   # type: ignore
+
     PROXY_CLIENT = PROXY_CLIENTS['NEPTUNE']
-    PROXY_ENCRYPTED = bool(distutils.util.strtobool(os.environ.get(PROXY_ENCRYPTED, 'True')))
-    PROXY_VALIDATE_SSL = bool(distutils.util.strtobool(os.environ.get(PROXY_VALIDATE_SSL, 'False')))
     PROXY_PASSWORD = boto3.session.Session(region_name=os.environ.get('AWS_REGION', 'us-east-1'))
 
     PROXY_CLIENT_KWARGS = {
         'neptune_bulk_loader_s3_bucket_name': os.environ.get('S3_BUCKET_NAME'),
+        'ignore_neptune_shard': distutils.util.strtobool(os.environ.get('IGNORE_NEPTUNE_SHARD', 'True'))
     }
 
     JANUS_GRAPH_URL = None
-
-    IS_STATSD_ON = bool(distutils.util.strtobool(os.environ.get(IS_STATSD_ON, 'False')))
-
-    SWAGGER_ENABLED = True
-    SWAGGER_TEMPLATE_PATH = os.path.join('api', 'swagger_doc', 'template.yml')
-    SWAGGER = {
-        'openapi': '3.0.2',
-        'title': 'Metadata Service',
-        'uiversion': 3
-    }
