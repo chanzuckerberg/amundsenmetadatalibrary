@@ -39,7 +39,7 @@ amundsen-common>=0.9.0
 amundsen-gremlin>=0.0.9
 
 boto3==1.17.23
-flasgger==0.9.3
+flasgger==0.9.5
 Flask-RESTful==0.3.6
 Flask==1.0.2
 flask-cors==3.0.10
